@@ -1,0 +1,180 @@
+#include <SD.h> //Load SD library
+
+#include <ThreeWire.h>  
+#include <RtcDS1302.h>
+
+#define countof(a) (sizeof(a) / sizeof(a[0]))
+
+ThreeWire myWire(4,5,2); // IO, SCLK, CE
+RtcDS1302<ThreeWire> Rtc(myWire);
+
+int chipSelect = 7; //chip select pin for the MicroSD Card Adapter
+File file; // file object that is used to read and write data
+
+void setup() {
+  Serial.begin(9600); // start serial connection to print out debug messages and data
+
+  pinMode(8,OUTPUT);
+  pinMode(9,OUTPUT);
+
+  digitalWrite(8,HIGH);
+  digitalWrite(9,HIGH);
+  
+  pinMode(chipSelect, OUTPUT); // chip select pin must be set to OUTPUT mode
+  if (!SD.begin(chipSelect)) { // Initialize SD card
+    Serial.println("Could not initialize SD card."); // if return value is false, something went wrong.
+  }else
+  {
+    Serial.println("Initialized SD card.");
+    }
+  
+  if (SD.exists("file.txt")) { // if "file.txt" exists, fill will be deleted
+    Serial.println("File exists.");
+    if (SD.remove("file.txt") == true) {
+      Serial.println("Successfully removed.");
+    } else {
+      Serial.println("Could not removed file.");
+    }
+  }
+  //RTC CONNECTION
+  Serial.print("compiled: ");
+    Serial.print(__DATE__);
+    Serial.println(__TIME__);
+
+    Rtc.Begin();
+
+    RtcDateTime compiled = RtcDateTime(__DATE__,__TIME__);
+    printDateTime(compiled);
+    Serial.println();
+
+    if (!Rtc.IsDateTimeValid()) 
+    {
+        // Common Causes:
+        //    1) first time you ran and the device wasn't running yet
+        //    2) the battery on the device is low or even missing
+
+        Serial.println("RTC lost confidence in the DateTime!");
+        Rtc.SetDateTime(compiled);
+    }
+
+    if (Rtc.GetIsWriteProtected())
+    {
+        Serial.println("RTC was write protected, enabling writing now");
+        Rtc.SetIsWriteProtected(false);
+    }
+
+    if (!Rtc.GetIsRunning())
+    {
+        Serial.println("RTC was not actively running, starting now");
+        Rtc.SetIsRunning(true);
+    }
+
+    RtcDateTime now = Rtc.GetDateTime();
+    if (now < compiled) 
+    {
+        Serial.println("RTC is older than compile time!  (Updating DateTime)");
+        Rtc.SetDateTime(compiled);
+    }
+    else if (now > compiled) 
+    {
+        Serial.println("RTC is newer than compile time. (this is expected)");
+    }
+    else if (now == compiled) 
+    {
+        Serial.println("RTC is the same as compile time! (not expected but all is fine)");
+    }
+    //RTC CONNECTION OFF
+}
+
+
+
+void printDateTime(const RtcDateTime& dt)
+{
+    char datestring[20];
+
+    snprintf_P(datestring, 
+            countof(datestring),
+            PSTR("%02u/%02u/%04u %02u:%02u:%02u"),
+            dt.Month(),
+            dt.Day(),
+            dt.Year(),
+            dt.Hour(),
+            dt.Minute(),
+            dt.Second() );
+    Serial.print(datestring);
+    String mystring(datestring);
+    
+}
+
+
+void loop() {
+  //RTC CONNECTION
+
+    RtcDateTime now = Rtc.GetDateTime();
+
+    printDateTime(now);
+    Serial.println();
+
+
+
+    printDateTime(now);
+    Serial.println();
+
+    if (!now.IsValid())
+    {
+        // Common Causes:
+        //    1) the battery on the device is low or even missing and the power line was disconnected
+        Serial.println("RTC lost confidence in the DateTime!");
+    }
+
+    delay(5000); // five 
+
+    //RTC CONNECTION OFF
+    
+  int btn = digitalRead(6); //SWITCH PIN
+  file = SD.open("file.txt", FILE_WRITE); // open "file.txt" to write data
+  if (file) {
+   // int number = random(10); // generate random number between 0 and 9
+    if (btn ==1)
+  {
+  
+    //Serial.println("On Time");
+    file.print("BULB ON  -  "); // write number to file
+    file.println(Rtc.GetDateTime());
+    Rtc.GetDateTime();
+    //file.print(datestring);//connection from rtc
+    file.close(); // close file
+    //Serial.print("Wrote number: "); // debug output: show written number in serial monitor
+    Serial.println("BULB ON");
+    
+  }else{
+    //Serial.println("OFF Time");
+    file.print("BULB OFF  -  "); // write number to file
+    file.println(Rtc.GetDateTime());
+    //file.print(datestring);//connection from rtc
+    file.close(); // close file
+    //Serial.print("Wrote number: "); // debug output: show written number in serial monitor
+    Serial.println("BULB OFF");
+    }
+    
+  } else {
+    Serial.println("Could not open file (writing).");
+  }
+  
+  file = SD.open("file.txt", FILE_READ); // open "file.txt" to read data
+  if (file) {
+    //Serial.println("- – Reading start – -");
+    char character;
+    while ((character = file.read()) != -1) { // this while loop reads data stored in "file.txt" and prints it to serial monitor
+      Serial.print(character);
+    }
+    file.close();
+    //Serial.println("- – Reading end – -");
+  } else {
+    Serial.println("Could not open file (reading).");
+  }
+  delay(500); // wait for 5000ms
+}
+
+
+
